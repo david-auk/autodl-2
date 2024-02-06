@@ -1,0 +1,4 @@
+mysql-connector-python==8.0.32
+yt-dlp==2023.11.16
+python-telegram-bot==13.11
+scrapetube==2.5.1
