@@ -4,7 +4,7 @@ import re
 
 class Youtube(object):
 	"""docstring for Youtube"""
-	def __init__(self, ytId):
+	def __init__(self, ytId, video_dir=None, video_ext='mp4', audio_dir=None, audio_ext='wav', thumbnail_dir=None, subtitle_dir=None):
 
 		self.ytId = ytId
 		
@@ -44,18 +44,23 @@ class Youtube(object):
 
 		self.info['fileName'] = f'{fileName}_{self.ytId}'
 
-		self.info['videoRootPath'] = None #conf.configuration['general']['video']['downloadDir']
-		self.info['fileFormatVideo'] = 'mp4'
+		self.info['videoRootPath'] = video_dir
+		self.info['fileFormatVideo'] = video_ext
 
-		self.info['audioRootPath'] = None #conf.configuration['general']['audio']['downloadDir']
-		self.info['fileFormatAudio'] = 'wav'
+		self.info['audioRootPath'] = audio_dir
+		self.info['fileFormatAudio'] = audio_ext
 
-		self.info['imageRootPath'] = None #conf.configuration['general']['image']['downloadDir']
+		self.info['imageRootPath'] = thumbnail_dir
 
-	def dlVideo(self):
+		self.info['subtitleRootPath'] = subtitle_dir
+
+	def dlVideo(self, path=None):
+
+		if not path:
+			path = f'{self.info["videoRootPath"]}/{self.info["fileName"]}'
 
 		ydl_opts = {
-			'outtmpl': f'{self.info["videoRootPath"]}/{self.info["fileName"]}',
+			'outtmpl': path,
 			'format': f'bestvideo+bestaudio[ext={self.info["fileFormatAudio"]}]/bestvideo+bestaudio',
 			'merge_output_format': self.info['fileFormatVideo']
 		}
@@ -65,10 +70,13 @@ class Youtube(object):
 
 		return f"{self.info['videoRootPath']}/{self.info['fileName']}.{self.info['fileFormatVideo']}"
 
-	def dlAudio(self):
+	def dlAudio(self, path=None):
 		
+		if not path:
+			path = f'{self.info["audioRootPath"]}/{self.info["fileName"]}'
+
 		ydl_opts = {
-			'outtmpl': f'{self.info["audioRootPath"]}/{self.info["fileName"]}',
+			'outtmpl': path,
 			'format': f'bestaudio',
 			'postprocessors': [{
 				'key': 'FFmpegExtractAudio',
@@ -82,7 +90,10 @@ class Youtube(object):
 
 		return f"{self.info['audioRootPath']}/{self.info['fileName']}.{self.info['fileFormatAudio']}"
 
-	def dlImage(self):
+	def dlImage(self, path=None):
+
+		if not path:
+			path = f'{self.info["imageRootPath"]}/{self.info["fileName"]}'
 
 		success = False
 		tries = 0
@@ -91,25 +102,53 @@ class Youtube(object):
 			try:
 				if tries == 3:
 					break 
-				urllib.request.urlretrieve(f'https://img.youtube.com/vi/{self.ytId}/maxresdefault.jpg', f'{self.info["imageRootPath"]}/{self.info["fileName"]}.jpg')	# Downloading the best img quality url
+				urllib.request.urlretrieve(f'https://img.youtube.com/vi/{self.ytId}/maxresdefault.jpg', f'{path}.jpg')	# Downloading the best img quality url
 				success = True
 			except Exception as e:
 				tries += 1
 
 		if success:
-			return f'{self.info["imageRootPath"]}/{self.info["fileName"]}.jpg'
+			return f'{path}.jpg'
 
 		tries = 0
 		while not success:
 			try:
 				if tries == 5:
 					raise Exception('Something went wrong trying to download the thumbnail') 
-				urllib.request.urlretrieve(self.info['thumbnail'], f'{self.info["imageRootPath"]}/{self.info["fileName"]}.jpg')
+				urllib.request.urlretrieve(self.info['thumbnail'], f'{path}.jpg')
 				success = True
 			except Exception as e:
 				tries += 1
 
-		return f'{self.info["imageRootPath"]}/{self.info["fileName"]}.jpg'
+		return f'{path}.jpg'
+
+	def dlSubtitles(self, languages=['en', 'nl']):
+
+		path = f'{self.info["subtitleRootPath"]}/{self.info["fileName"]}'
+
+		# Set options for subtitle download
+		ydl_opts = {
+			'format': 'best',
+			'outtmpl': path,
+			'writesubtitles': True,
+			'skip_download': True  # Set to True to skip downloading video
+		}
+
+		# Check if the video has subtitles
+		if 'subtitles' in self.info:
+			for lang in languages:
+				for key in self.info['subtitles']:
+					if key.startswith(lang):
+
+						# Download subtitles
+						with YoutubeDL(ydl_opts) as ydl:
+							result = ydl.extract_info(self.info['subtitles'][key][0]['url'], download=True)
+
+							return path + '.' + key + '.vtt'
+							
+			return None # No subtitles found for any specified language.
+		else:
+			return None # No subtitles found for any language.
 
 class MySQL(object):
 	"""docstring for MySQL"""
@@ -131,9 +170,9 @@ class MySQL(object):
 		if not self.mysqlInterface.is_connected():
 			self.mysqlInterface.reconnect()
 
-		# Fix INSERT None to NULL translation
+		# (dirty) Fix INSERT None to NULL translation (to be itterated)
 		if statement.upper().startswith('INSERT'):
-
+		
 			statement = re.sub(r'\(None\b', '(NULL', statement) # Replace with null value if begins with
 			statement = re.sub(r',\s*None\b', ', NULL', statement) # Replace with null value if anywhere else
 

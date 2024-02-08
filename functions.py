@@ -10,10 +10,16 @@ def currentIncrement():
 	# Get the current time
 	current_time = datetime.now().time()
 
+	current_minute = current_time.minute
+
+	if current_minute == 0:
+		current_minute = 60
+
 	# Define the increments and their corresponding intervals
 	increments = {
 		1: 60,
 		2: 30,
+		3: 20,
 		4: 15,
 		6: 10,
 		12: 5
@@ -22,7 +28,7 @@ def currentIncrement():
 	# Find the current increment
 	current_increment = None
 	for increment, interval in increments.items():
-		if current_time.minute % interval == 0:
+		if current_minute % interval == 0:
 			current_increment = increment
 			break
 
